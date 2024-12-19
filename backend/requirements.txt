@@ -1,0 +1,7 @@
+Flask>=2.0.0
+Scrapy>=2.5.0
+selenium>=4.0.0
+pytest>=6.0.0
+requests>=2.25.1
+# Uncomment the following line to include scrapy-redis
+# scrapy-redis>=0.7.0
