@@ -1,5 +1,6 @@
+****
+## Advanced Features
 
-Advanced Features
 The Jewelry Scraper application includes several advanced features designed to enhance functionality, performance, and user experience. This document provides detailed information on these features and how to utilize them effectively.
 
 Table of Contents
@@ -11,6 +12,7 @@ Data Visualization
 Performance Optimization
 System Scalability
 Monitoring & Analytics
+
 1. Proxy Rotation and User-Agent Spoofing
 Overview
 To enhance scraping resilience and avoid being blocked by target websites, the application implements proxy rotation and user-agent spoofing.
@@ -22,7 +24,9 @@ Configuration:
 
 python
 Copy code
+
 # scraper/utils/proxy_manager.py
+
 PROXY_LIST_PATH = 'config/proxies.txt'
 Usage: The proxy manager automatically assigns a proxy to each request and rotates it upon encountering blocks.
 
@@ -30,7 +34,9 @@ User-Agent Spoofing
 Implementation: Custom user-agent strings are set in the spider's settings.
 python
 Copy code
+
 # scraper/spiders/base.py
+
 custom_settings = {
     'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)...'
 }
@@ -64,8 +70,8 @@ from email.mime.text import MIMEText
 def send_error_notification(error_message):
     msg = MIMEText(error_message)
     msg['Subject'] = 'Jewelry Scraper Critical Error'
-    msg['From'] = 'alert@example.com'
-    msg['To'] = 'admin@example.com'
+    msg['From'] = '<alert@example.com>'
+    msg['To'] = '<admin@example.com>'
 
     with smtplib.SMTP('smtp.example.com') as server:
         server.login('user', 'password')
@@ -77,7 +83,7 @@ Manual Backup
 Trigger Backup:
 bash
 Copy code
-GET http://localhost:5000/backup
+GET <http://localhost:5000/backup>
 Storage: Backups are saved in the data/backups/ directory with timestamped filenames.
 Automated Backups
 Scheduler Setup: Use a scheduler (e.g., APScheduler) to automate daily backups.
@@ -270,9 +276,10 @@ Configure Prometheus:
 yaml
 Copy code
 scrape_configs:
-  - job_name: 'jewelry_scraper'
+
+- job_name: 'jewelry_scraper'
     static_configs:
-      - targets: ['backend:5000']
+  - targets: ['backend:5000']
 Create Grafana Dashboards: Import pre-built dashboards or create custom ones to visualize metrics like CPU usage, memory consumption, and request rates.
 
 Alerting
@@ -280,11 +287,14 @@ Set up alerts for critical performance thresholds to enable proactive issue reso
 
 yaml
 Copy code
+
 # Example Prometheus alert rule
+
 groups:
-  - name: jewelry_scraper_alerts
+
+- name: jewelry_scraper_alerts
     rules:
-      - alert: HighErrorRate
+  - alert: HighErrorRate
         expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
         for: 5m
         labels:
@@ -292,4 +302,6 @@ groups:
         annotations:
           summary: "High error rate detected"
           description: "The error rate has exceeded 5% for the past 5 minutes."
-End of Advanced Features Documentation 
+End of Advanced Features Documentation
+
+****
