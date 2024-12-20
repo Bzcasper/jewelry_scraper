@@ -1,0 +1,34 @@
+.system-stats {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .stats-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  
+  .stat {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fff;
+  }
+  
+  .stat h3 {
+    margin-bottom: 10px;
+    font-size: 1.2em;
+  }
+  
+  .stat p {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 0;
+  }
+  
