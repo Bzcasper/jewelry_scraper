@@ -1,196 +1,272 @@
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, Settings, Moon, Sun, RefreshCw } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import SearchBar from './components/SearchBar';
-import DataTable from './components/DataTable';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useApp } from './context/AppContext';
+import { 
+  Search, Settings, Sun, Moon, Database, AlertCircle, 
+  BarChart2, Layout, RefreshCw, ChevronLeft, Users, 
+  HardDrive, Shield
+} from 'lucide-react';
 import DataDashboard from './components/DataDashboard';
 import EnhancedSearch from './components/EnhancedSearch';
+import DataTable from './components/DataTable';
+import SystemStats from './components/SystemStats';
+import Analytics from './components/Analytics';
+import SettingsPanel from './components/SettingsPanel';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+const REFRESH_INTERVALS = {
+  FAST: 5000,
+  NORMAL: 30000,
+  SLOW: 60000
+};
 
 const App = () => {
+  // State Management
+  const { systemStatus, error, clearError } = useApp();
   const [darkMode, setDarkMode] = useState(false);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedView, setSelectedView] = useState('dashboard');
-  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
-  const [systemStatus, setSystemStatus] = useState({
-    lastSync: null,
-    activeJobs: 0,
-    databaseSize: 0,
-    errorRate: 0
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Theme management
+  // Navigation Configuration
+  const navigation = [
+    { 
+      name: 'Dashboard', 
+      icon: Layout, 
+      view: 'dashboard',
+      badge: systemStatus?.activeJobs || 0 
+    },
+    { 
+      name: 'Search', 
+      icon: Search, 
+      view: 'search' 
+    },
+    { 
+      name: 'Data', 
+      icon: Database, 
+      view: 'data',
+      badge: systemStatus?.totalProducts || 0
+    },
+    { 
+      name: 'Analytics', 
+      icon: BarChart2, 
+      view: 'analytics' 
+    },
+    { 
+      name: 'Users', 
+      icon: Users, 
+      view: 'users',
+      requiresAdmin: true
+    },
+    { 
+      name: 'Storage', 
+      icon: HardDrive, 
+      view: 'storage' 
+    },
+    { 
+      name: 'Security', 
+      icon: Shield, 
+      view: 'security',
+      requiresAdmin: true
+    }
+  ];
+
+  // Handle Dark Mode
   useEffect(() => {
-    const isDark = localStorage.getItem('darkMode') === 'true';
-    setDarkMode(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
+    const savedMode = localStorage.getItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setDarkMode(savedMode ? savedMode === 'true' : prefersDark);
   }, []);
 
-  const toggleTheme = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('darkMode', newMode.toString());
-    document.documentElement.classList.toggle('dark', newMode);
-  };
-
-  // System status polling
   useEffect(() => {
-    const fetchSystemStatus = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/system/status');
-        if (!response.ok) throw new Error('Failed to fetch system status');
-        const data = await response.json();
-        setSystemStatus(data);
-      } catch (err) {
-        setError('System status check failed');
-        console.error('Error fetching system status:', err);
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('darkMode', darkMode.toString());
+  }, [darkMode]);
+
+  // Handle Mobile Detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth < 768) setSidebarOpen(false);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // System Status Polling
+  const fetchSystemStatus = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:5000/system/status');
+      if (!response.ok) throw new Error('Failed to fetch system status');
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      console.error('Error fetching system status:', err);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const pollStatus = async () => {
+      const status = await fetchSystemStatus();
+      if (status) {
+        // Update system status through context
       }
     };
 
-    fetchSystemStatus();
-    const interval = setInterval(fetchSystemStatus, refreshInterval);
+    pollStatus();
+    const interval = setInterval(pollStatus, refreshInterval);
     return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, [refreshInterval, fetchSystemStatus]);
+
+  // View Components Mapping
+  const viewComponents = {
+    dashboard: <DataDashboard />,
+    search: <EnhancedSearch />,
+    data: <DataTable />,
+    analytics: <Analytics />,
+    settings: <SettingsPanel 
+      refreshInterval={refreshInterval}
+      setRefreshInterval={setRefreshInterval}
+    />,
+    users: <div>Users Management</div>,
+    storage: <div>Storage Management</div>,
+    security: <div>Security Settings</div>
+  };
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-gray-50'}`}>
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                Jewelry Scraper
-              </h1>
-              
-              {/* System Status Indicators */}
-              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-                <span className="flex items-center">
-                  <RefreshCw
-                    className={`h-4 w-4 mr-1 ${
-                      systemStatus.activeJobs > 0 ? 'animate-spin text-green-500' : ''
-                    }`}
-                  />
-                  {systemStatus.activeJobs} Active Jobs
-                </span>
-                <span>
-                  Last Sync: {
-                    systemStatus.lastSync 
-                      ? new Date(systemStatus.lastSync).toLocaleTimeString()
-                      : 'Never'
-                  }
-                </span>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center space-x-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      {/* Sidebar */}
+      <div 
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 transform 
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          transition-transform duration-200 ease-in-out border-r dark:border-gray-700
+          ${isMobile ? 'shadow-lg' : ''}`}
+      >
+        {/* Sidebar Content */}
+        <div className="flex flex-col h-full">
+          {/* Logo Section */}
+          <div className="flex items-center justify-between px-4 h-16 border-b dark:border-gray-700">
+            <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              Jewelry Scraper
+            </span>
+            {isMobile && (
               <button
-                onClick={toggleTheme}
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+            {navigation.map((item) => (
+              !item.requiresAdmin && (
+                <button
+                  key={item.name}
+                  onClick={() => {
+                    setCurrentView(item.view);
+                    if (isMobile) setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center px-4 py-2 rounded-lg transition-colors
+                    ${currentView === item.view
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  <item.icon className="w-5 h-5 mr-3" />
+                  <span>{item.name}</span>
+                  {item.badge > 0 && (
+                    <span className="ml-auto px-2 py-0.5 text-xs font-medium rounded-full 
+                      bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100"
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              )
+            ))}
+          </nav>
+
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 {darkMode ? (
-                  <Sun className="h-5 w-5" />
+                  <Sun className="w-5 h-5" />
                 ) : (
-                  <Moon className="h-5 w-5" />
+                  <Moon className="w-5 h-5" />
                 )}
               </button>
-
               <button
-                onClick={() => setSelectedView('settings')}
+                onClick={() => setCurrentView('settings')}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                <Settings className="h-5 w-5" />
+                <Settings className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Error Alert */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* View Navigation */}
-        <div className="mb-6">
-          <nav className="flex space-x-4">
-            <button
-              onClick={() => setSelectedView('dashboard')}
-              className={`px-4 py-2 rounded-lg ${
-                selectedView === 'dashboard'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setSelectedView('search')}
-              className={`px-4 py-2 rounded-lg ${
-                selectedView === 'search'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              Search
-            </button>
-            <button
-              onClick={() => setSelectedView('data')}
-              className={`px-4 py-2 rounded-lg ${
-                selectedView === 'data'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              Data Table
-            </button>
-          </nav>
-        </div>
-
-        {/* View Content */}
-        <div className="space-y-6">
-          {selectedView === 'dashboard' && <DataDashboard />}
-          {selectedView === 'search' && <EnhancedSearch />}
-          {selectedView === 'data' && <DataTable />}
-          {selectedView === 'settings' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Settings</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Auto-refresh Interval (ms)
-                  </label>
-                  <input
-                    type="number"
-                    value={refreshInterval}
-                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                    className="px-3 py-2 border rounded-lg w-full dark:bg-gray-700 dark:border-gray-600"
-                    min="5000"
-                    step="1000"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 shadow-md mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300">
-            <span>Database Size: {(systemStatus.databaseSize / 1024 / 1024).toFixed(2)} MB</span>
-            <span>Error Rate: {(systemStatus.errorRate * 100).toFixed(2)}%</span>
+      <div className={`transition-all duration-200 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-4">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            )}
+            <SystemStats />
           </div>
-        </div>
-      </footer>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="p-4">
+          {/* Error Alert */}
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                {error}
+                <button
+                  onClick={clearError}
+                  className="ml-2 text-sm underline"
+                >
+                  Dismiss
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Active View */}
+          <div className="max-w-7xl mx-auto">
+            {viewComponents[currentView]}
+          </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white dark:bg-gray-800 shadow-md mt-8">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <SystemStats detailed />
+          </div>
+        </footer>
+      </div>
     </div>
   );
 };

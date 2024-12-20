@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { productsApi } from '../services/api';
+import { productsApi } from '../src/services/api';
 
 export const useDataFetching = (initialParams = {}) => {
   const [data, setData] = useState([]);

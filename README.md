@@ -413,4 +413,488 @@ IMPROVEMENT_PRIORITIES = {
         'Advanced analytics',
         'API extensions'
     ]
-}
+}```markdown
+# Jewelry Scraper
+
+A full-stack application for scraping and managing jewelry product data from major e-commerce platforms.
+
+## Features
+
+- Real-time product scraping from eBay and Amazon
+- Advanced image processing and optimization
+- Comprehensive data validation and cleaning
+- Interactive dashboard with real-time updates
+- Advanced search and filtering capabilities
+- Data export and backup functionality
+- Monitoring and alerting system
+
+## Technology Stack
+
+### Backend
+- Python 3.10+
+- FastAPI
+- Scrapy
+- Selenium/undetected-chromedriver
+- SQLAlchemy
+- PostgreSQL
+- Redis
+
+### Frontend
+- React
+- Tailwind CSS
+- TypeScript
+- Chart.js
+
+### Infrastructure
+- Docker
+- Prometheus
+- Grafana
+
+## Quick Start
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/jewelry-scraper.git
+cd jewelry-scraper
+```
+
+2. Set up environment:
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+3. Start services with Docker:
+```bash
+docker-compose up -d
+```
+
+4. Access the application:
+- Frontend: http://localhost:3000
+- API: http://localhost:5000
+- Monitoring: http://localhost:3001
+
+## Development Setup
+
+1. Install development dependencies:
+```bash
+pip install -r requirements-dev.txt
+```
+
+2. Set up pre-commit hooks:
+```bash
+pre-commit install
+```
+
+3. Run tests:
+```bash
+pytest tests/
+```
+
+## Configuration
+
+Key configuration files:
+- `.env`: Environment variables
+- `config/settings.py`: Application settings
+- `config/proxies.json`: Proxy configuration
+- `docker-compose.yml`: Container configuration
+
+## Usage
+
+### Starting a Scraping Job
+
+```python
+from scraper import JewelryScraper
+
+scraper = JewelryScraper()
+results = await scraper.scrape(
+    query="gold ring",
+    platform="ebay",
+    max_items=50
+)
+```
+
+### API Endpoints
+
+- `POST /scrape`: Start scraping job
+- `GET /scrape/status/{job_id}`: Check job status
+- `GET /products`: Get scraped products
+- `GET /system/status`: Get system metrics
+
+## Monitoring
+
+The application includes comprehensive monitoring:
+
+1. Metrics tracked:
+   - Scraping success rate
+   - Response times
+   - Error rates
+   - Resource usage
+
+2. Alerting rules:
+   - High error rate
+   - Slow response time
+   - Resource constraints
+
+3. Dashboards:
+   - System overview
+   - Scraping metrics
+   - Data quality
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch:
+```bash
+git checkout -b feature/my-feature
+```
+3. Commit your changes:
+```bash
+git commit -am 'Add new feature'
+```
+4. Push to the branch:
+```bash
+git push origin feature/my-feature
+```
+5. Submit a pull request
+
+## Deployment
+
+1. Configure production settings:
+```bash
+# Set production environment
+export APP_ENV=production
+
+# Update .env file
+cp .env.prod .env
+```
+
+2. Deploy with Docker:
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+3. Monitor deployment:
+```bash
+docker-compose logs -f
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Scrapy documentation
+- Selenium documentation
+- React documentation
+- Docker documentation
+
+## Support
+
+For support, email support@example.com or create an issue in the repository.
+``````markdown
+# Jewelry Scraper - Project Documentation
+
+## Directory Structure
+```
+jewelry_scraper/
+│
+├── backend/
+│   ├── scraper/
+│   │   ├── spiders/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py              # Base spider class
+│   │   │   ├── ebay_spider.py       # eBay-specific spider
+│   │   │   └── amazon_spider.py     # Amazon-specific spider
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── __init__.py
+│   │   │   ├── proxy_manager.py     # Proxy rotation management
+│   │   │   ├── rate_limiter.py      # Request rate limiting
+│   │   │   └── image_processor.py   # Image handling utilities
+│   │   │
+│   │   └── orchestrator.py          # Main scraping coordinator
+│   │
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── manager.py               # Database operations
+│   │   └── models.py                # SQLAlchemy models
+│   │
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── app.py                   # Flask API endpoints
+│   │
+│   └── config/
+│       ├── __init__.py
+│       └── settings.py              # Configuration settings
+│
+├── frontend/
+│   ├── public/
+│   │   └── index.html
+│   │
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DataDashboard.js
+│   │   │   ├── DataTable.js
+│   │   │   ├── EnhancedSearch.js
+│   │   │   ├── ProductCard.js
+│   │   │   └── SystemMonitor.js
+│   │   │
+│   │   ├── services/
+│   │   │   └── api.js              # API integration
+│   │   │
+│   │   ├── context/
+│   │   │   └── AppContext.js       # Global state
+│   │   │
+│   │   ├── App.js
+│   │   └── index.js
+│   │
+│   ├── package.json
+│   └── README.md
+│
+├── data/
+│   ├── images/                      # Stored product images
+│   └── backups/                     # Database backups
+│
+├── logs/                            # Application logs
+│
+├── tests/
+│   ├── backend/
+│   │   ├── test_spiders.py
+│   │   ├── test_database.py
+│   │   └── test_api.py
+│   │
+│   └── frontend/
+│       └── components/
+│           └── test_components.js
+│
+├── .env.example                     # Environment variables template
+├── requirements.txt                 # Python dependencies
+├── docker-compose.yml              # Docker configuration
+└── README.md                       # Project documentation
+```
+
+## Setup Guide
+
+### 1. Environment Setup
+```bash
+# Clone repository
+git clone https://github.com/your-repo/jewelry-scraper.git
+cd jewelry-scraper
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install backend dependencies
+pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend
+npm install
+```
+
+### 2. Configuration
+Copy `.env.example` to `.env` and configure:
+```env
+# API Configuration
+FLASK_APP=api/app.py
+FLASK_ENV=development
+PORT=5000
+
+# Database
+DATABASE_URL=sqlite:///jewelry_scraper.db
+
+# Scraping Settings
+MAX_CONCURRENT_REQUESTS=8
+DOWNLOAD_DELAY=2
+MAX_RETRIES=3
+
+# Storage
+IMAGE_STORAGE_PATH=data/images
+BACKUP_PATH=data/backups
+
+# Proxy Configuration (Optional)
+PROXY_LIST_PATH=config/proxies.txt
+```
+
+### 3. Running the Application
+
+#### Backend:
+```bash
+# Start Flask API
+python -m flask run
+
+# Or with development server
+python api/app.py
+```
+
+#### Frontend:
+```bash
+cd frontend
+npm start
+```
+
+## Usage Guide
+
+### 1. Scraping Products
+
+The application supports scraping from:
+- eBay (jewelry category)
+- Amazon (jewelry category)
+
+#### Search Parameters:
+- Query: Search term for jewelry items
+- Platform: eBay or Amazon
+- Max Items: Number of items to scrape
+- Filters:
+  - Price Range
+  - Category
+  - Condition
+  - Sort Order
+
+### 2. Features
+
+#### Data Collection:
+- Product details (title, price, description)
+- Image downloading and optimization
+- Seller information
+- Product specifications
+
+#### Monitoring:
+- Real-time scraping progress
+- System resource usage
+- Error tracking
+- Performance metrics
+
+#### Data Management:
+- Product browsing
+- Filtering and sorting
+- Export capabilities
+- Image management
+
+### 3. API Endpoints
+
+```python
+# Scraping Endpoints
+POST /scrape                # Start scraping job
+GET /scrape/status/<id>     # Check job status
+POST /scrape/cancel/<id>    # Cancel job
+
+# Product Endpoints
+GET /products               # Get products with filters
+DELETE /products            # Delete products
+GET /products/export        # Export products
+
+# System Endpoints
+GET /system/status          # Get system metrics
+GET /system/report          # Get performance report
+```
+
+### 4. Error Handling
+
+The system includes:
+- Automatic retry mechanism
+- Proxy rotation
+- Rate limiting
+- Error logging
+- Job recovery
+
+### 5. Maintenance
+
+Regular maintenance tasks:
+```bash
+# Database backup
+python scripts/backup_db.py
+
+# Clean old images
+python scripts/cleanup_images.py
+
+# Check system health
+python scripts/health_check.py
+```
+
+### 6. Monitoring
+
+Access monitoring dashboard at:
+```
+http://localhost:3000/dashboard
+```
+
+Features:
+- Active jobs
+- Success rates
+- Resource usage
+- Error rates
+
+## Best Practices
+
+1. Scraping:
+   - Use appropriate delays between requests
+   - Implement proxy rotation for large jobs
+   - Monitor rate limiting
+   - Validate scraped data
+
+2. Data Storage:
+   - Regular database backups
+   - Clean up unused images
+   - Monitor storage usage
+   - Validate data integrity
+
+3. Performance:
+   - Limit concurrent requests
+   - Optimize image storage
+   - Use caching when appropriate
+   - Monitor system resources
+
+## Troubleshooting
+
+Common issues and solutions:
+1. Blocked Requests
+   - Rotate proxies
+   - Increase delays
+   - Check user agents
+
+2. Image Download Failures
+   - Verify URLs
+   - Check storage permissions
+   - Monitor bandwidth usage
+
+3. Database Issues
+   - Check connections
+   - Verify permissions
+   - Monitor disk space
+
+4. Memory Usage
+   - Adjust batch sizes
+   - Monitor resource usage
+   - Clean up temporary files
+
+## Contributing
+
+Follow these guidelines:
+1. Fork repository
+2. Create feature branch
+3. Write tests
+4. Submit pull request
+
+## License
+
+MIT License - See LICENSE file for details
+```
+
+Would you like me to:
+1. Add more technical details
+2. Expand troubleshooting
+3. Add deployment guides
+4. Create additional documentation
+
+The documentation focuses on practical usage while maintaining technical accuracy.
