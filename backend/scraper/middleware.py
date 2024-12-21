@@ -1,148 +1,109 @@
-from scrapy import signals
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-import undetected_chromedriver as uc
-import asyncio
-import aiohttp
-from PIL import Image
-import io
-import logging
-from urllib.parse import urljoin
-import time
+# File: /backend/scraper/middleware.py
 
-class DynamicContentMiddleware:
-    """Middleware to handle dynamic content loading and image processing"""
+from typing import Optional, Dict
+import logging
+import aiohttp
+import asyncio
+from bs4 import BeautifulSoup
+import json
+from datetime import datetime
+from .selenium_utils import SeleniumManager
+from utils.rate_limiter import AdaptiveRateLimiter
+from utils.proxy_manager import ProxyManager
+
+class ScraperMiddleware:
+    """Handle request/response processing and resource management"""
     
     def __init__(self):
-        self.driver = None
-        self.image_semaphore = asyncio.Semaphore(5)  # Limit concurrent downloads
-        
-    @classmethod
-    def from_crawler(cls, crawler):
-        middleware = cls()
-        crawler.signals.connect(middleware.spider_opened, signal=signals.spider_opened)
-        crawler.signals.connect(middleware.spider_closed, signal=signals.spider_closed)
-        return middleware
+        self.selenium = SeleniumManager(headless=True)
+        self.rate_limiter = AdaptiveRateLimiter()
+        self.proxy_manager = ProxyManager()
+        self.logger = logging.getLogger(__name__)
+        self.session: Optional[aiohttp.ClientSession] = None
 
-    def spider_opened(self, spider):
-        # Initialize undetected-chromedriver to bypass detection
-        options = uc.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
+    async def process_request(self, url: str, platform: str) -> Optional[str]:
+        """Process request with rate limiting and proxy rotation"""
+        await self.rate_limiter.wait(platform)
         
-        # Add headers to mimic real browser
-        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-        
-        self.driver = uc.Chrome(options=options)
-        self.wait = WebDriverWait(self.driver, 10)
-        spider.driver = self.driver
-        spider.wait = self.wait
-
-    def spider_closed(self, spider):
-        if self.driver:
-            self.driver.quit()
-
-    async def process_page(self, url):
-        """Process dynamic page content"""
-        self.driver.get(url)
-        
-        # Wait for main content to load
         try:
-            main_content = self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '.s-result-item, .s-item'))
-            )
-        except TimeoutException:
-            logging.error(f"Timeout waiting for main content: {url}")
-            return None
+            proxy = await self.proxy_manager.get_proxy()
+            if not self.session:
+                self.session = aiohttp.ClientSession()
 
-        # Scroll to load lazy content
-        self.scroll_page()
-        
-        # Wait for dynamic elements
-        self.wait_for_dynamic_elements()
-        
-        return self.driver.page_source
+            async with self.session.get(
+                url,
+                proxy=proxy.url if proxy else None,
+                timeout=30
+            ) as response:
+                if response.status == 200:
+                    self.rate_limiter.update_success_rate(True)
+                    return await response.text()
+                    
+                if response.status == 403:  # Blocked
+                    self.logger.warning(f"Access blocked for {url}")
+                    if proxy:
+                        self.proxy_manager.report_failure(proxy)
+                    self.rate_limiter.update_success_rate(False)
+                    return None
 
-    def scroll_page(self):
-        """Scroll page to trigger lazy loading"""
-        last_height = self.driver.execute_script("return document.body.scrollHeight")
-        while True:
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(1)  # Allow time for content to load
-            
-            new_height = self.driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:
-                break
-            last_height = new_height
-
-    def wait_for_dynamic_elements(self):
-        """Wait for specific dynamic elements to load"""
-        try:
-            # Wait for images to load
-            self.wait.until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'img[src]'))
-            )
-            # Wait for price elements
-            self.wait.until(
-                EC.presence_of_all_elements_located((
-                    By.CSS_SELECTOR, '.s-price, .price, .s-item__price'
-                ))
-            )
-        except TimeoutException:
-            logging.warning("Some dynamic elements failed to load")
-
-    async def download_image(self, url: str, product_id: str) -> str:
-        """Download and process product image asynchronously"""
-        async with self.image_semaphore:  # Limit concurrent downloads
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as response:
-                        if response.status == 200:
-                            image_data = await response.read()
-                            return await self.process_image(image_data, product_id, url)
-            except Exception as e:
-                logging.error(f"Error downloading image {url}: {e}")
-                return None
-
-    async def process_image(self, image_data: bytes, product_id: str, url: str) -> str:
-        """Process and optimize downloaded image"""
-        try:
-            # Open image with PIL
-            image = Image.open(io.BytesIO(image_data))
-            
-            # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Resize if too large while maintaining aspect ratio
-            max_size = 1200
-            if max(image.size) > max_size:
-                ratio = max_size / max(image.size)
-                new_size = tuple(int(dim * ratio) for dim in image.size)
-                image = image.resize(new_size, Image.LANCZOS)
-            
-            # Save optimized image
-            output = io.BytesIO()
-            image.save(output, 
-                      format='JPEG', 
-                      quality=85, 
-                      optimize=True)
-            
-            # Generate unique filename
-            filename = f"{product_id}_{hash(url)}.jpg"
-            
-            # Save to storage
-            with open(f"product_images/{filename}", 'wb') as f:
-                f.write(output.getvalue())
-            
-            return filename
-            
         except Exception as e:
-            logging.error(f"Error processing image: {e}")
+            self.logger.error(f"Request failed for {url}: {e}")
+            if proxy:
+                self.proxy_manager.report_failure(proxy)
+            self.rate_limiter.update_success_rate(False)
             return None
+
+    async def process_response(self, html: str, platform: str) -> Optional[Dict]:
+        """Process response and extract structured data"""
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Check for anti-bot measures
+            if self._is_blocked(soup, platform):
+                self.logger.warning(f"Anti-bot detection on {platform}")
+                return None
+            
+            # Extract structured data
+            structured_data = self._extract_structured_data(soup)
+            if structured_data:
+                return structured_data
+            
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Response processing failed: {e}")
+            return None
+
+    def _is_blocked(self, soup: BeautifulSoup, platform: str) -> bool:
+        """Check if response indicates blocking"""
+        if platform == 'amazon':
+            return any(text in soup.get_text().lower() 
+                      for text in ['robot', 'captcha', 'verify'])
+        elif platform == 'ebay':
+            return any(text in soup.get_text().lower() 
+                      for text in ['security measure', 'verify'])
+        return False
+
+    def _extract_structured_data(self, soup: BeautifulSoup) -> Optional[Dict]:
+        """Extract structured data from page"""
+        try:
+            # Try JSON-LD
+            for script in soup.find_all('script', type='application/ld+json'):
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') in ['Product', 'Offer']:
+                        return data
+                except json.JSONDecodeError:
+                    continue
+            
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Structured data extraction failed: {e}")
+            return None
+
+    async def cleanup(self):
+        """Clean up resources"""
+        if self.session:
+            await self.session.close()
+            self.session = None

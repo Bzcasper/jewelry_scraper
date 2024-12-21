@@ -9,7 +9,7 @@ from decimal import Decimal
 import threading
 import queue
 from pathlib import Path
-from logger import log_error, log_critical_error
+from backend.utils.logger import log_error, log_critical_error
 
 @dataclass
 class ProductData:

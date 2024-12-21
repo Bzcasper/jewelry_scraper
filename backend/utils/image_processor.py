@@ -1,13 +1,15 @@
-from PIL import Image
+# File: /backend/utils/image_processor.py
+
 import aiohttp
 import asyncio
-from io import BytesIO
+from PIL import Image
+import io
 import os
 from typing import List, Dict, Optional
 import hashlib
+from pathlib import Path
 import logging
 from datetime import datetime
-from pathlib import Path
 import magic
 import aiofiles
 from concurrent.futures import ThreadPoolExecutor
@@ -15,22 +17,22 @@ from concurrent.futures import ThreadPoolExecutor
 class ImageProcessor:
     """Handles downloading, processing, and storing product images"""
     
-    def __init__(self):
-        # Configure storage paths
-        self.base_path = Path('product_images')
-        self.base_path.mkdir(exist_ok=True)
+    def __init__(self, storage_path: str = "data/images"):
+        self.storage_path = Path(storage_path)
+        self.storage_path.mkdir(parents=True, exist_ok=True)
         
-        # Image processing settings
+        # Processing settings
         self.max_size = 1200
         self.quality = 85
         self.formats = {'.jpg', '.jpeg', '.png', '.webp'}
+        self.min_dimension = 200
+        self.max_file_size = 10 * 1024 * 1024  # 10MB
         
         # Concurrency control
         self.semaphore = asyncio.Semaphore(5)
         self.session = None
         self.executor = ThreadPoolExecutor(max_workers=4)
         
-        # Setup logging
         self.logger = logging.getLogger(__name__)
 
     async def process_images(self, urls: List[str], product_id: str) -> List[Dict]:
@@ -42,7 +44,7 @@ class ImageProcessor:
         tasks = []
 
         # Create product directory
-        product_dir = self.base_path / product_id
+        product_dir = self.storage_path / product_id
         product_dir.mkdir(exist_ok=True)
 
         # Process images concurrently
@@ -77,9 +79,9 @@ class ImageProcessor:
                 if not self._validate_image(image_data):
                     return {'success': False, 'error': 'Invalid image'}
 
-                # Generate filename
+                # Generate filename and path
                 filename = self._generate_filename(url, product_id)
-                filepath = self.base_path / product_id / filename
+                filepath = self.storage_path / product_id / filename
 
                 # Process image in thread pool
                 loop = asyncio.get_event_loop()
@@ -112,6 +114,7 @@ class ImageProcessor:
             try:
                 async with self.session.get(url) as response:
                     if response.status == 200:
+                        # Verify content type
                         content_type = response.headers.get('content-type', '')
                         if not content_type.startswith('image/'):
                             return None
@@ -125,6 +128,8 @@ class ImageProcessor:
                 if attempt == 2:
                     return None
                 await asyncio.sleep(attempt + 1)
+        
+        return None
 
     def _validate_image(self, image_data: bytes) -> bool:
         """Validate image data"""
@@ -135,14 +140,14 @@ class ImageProcessor:
                 return False
 
             # Verify image can be opened
-            image = Image.open(BytesIO(image_data))
+            image = Image.open(io.BytesIO(image_data))
             
             # Check dimensions
-            if image.size[0] < 100 or image.size[1] < 100:
+            if min(image.size) < self.min_dimension:
                 return False
 
             # Check file size
-            if len(image_data) > 10 * 1024 * 1024:  # 10MB
+            if len(image_data) > self.max_file_size:
                 return False
 
             return True
@@ -153,7 +158,7 @@ class ImageProcessor:
     def _optimize_image(self, image_data: bytes, filepath: Path) -> Optional[Dict]:
         """Optimize image for storage"""
         try:
-            image = Image.open(BytesIO(image_data))
+            image = Image.open(io.BytesIO(image_data))
 
             # Convert to RGB if necessary
             if image.mode not in ('RGB', 'RGBA'):
@@ -191,10 +196,12 @@ class ImageProcessor:
         
         return f"{product_id}_{url_hash}.jpg"
 
+    # File: /backend/utils/image_processor.py (continued)
+
     async def cleanup_unused_images(self, active_paths: List[str]):
-        """Remove unused images"""
+        """Remove unused images and empty directories"""
         try:
-            for product_dir in self.base_path.iterdir():
+            for product_dir in self.storage_path.iterdir():
                 if not product_dir.is_dir():
                     continue
 
@@ -202,22 +209,44 @@ class ImageProcessor:
                     if str(image_file) not in active_paths:
                         try:
                             image_file.unlink()
+                            self.logger.info(f"Removed unused image: {image_file}")
                         except Exception as e:
                             self.logger.error(f"Error deleting {image_file}: {str(e)}")
 
                 # Remove empty directories
                 if not any(product_dir.iterdir()):
                     product_dir.rmdir()
+                    self.logger.info(f"Removed empty directory: {product_dir}")
 
         except Exception as e:
             self.logger.error(f"Error during image cleanup: {str(e)}")
 
+    async def verify_images(self, paths: List[str]) -> Dict[str, bool]:
+        """Verify existence and integrity of stored images"""
+        results = {}
+        for path in paths:
+            try:
+                file_path = Path(path)
+                if not file_path.exists():
+                    results[path] = False
+                    continue
+
+                # Verify image can be opened
+                with Image.open(file_path) as img:
+                    img.verify()
+                results[path] = True
+            except Exception:
+                results[path] = False
+        return results
+
     async def __aenter__(self):
+        """Set up async context"""
         if not self.session:
             self.session = aiohttp.ClientSession()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Clean up resources"""
         if self.session:
             await self.session.close()
         self.executor.shutdown(wait=False)

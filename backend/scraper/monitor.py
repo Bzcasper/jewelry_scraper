@@ -1,68 +1,82 @@
+# File: /backend/scraper/monitor.py
+
 import psutil
 import time
 from collections import deque
-from typing import Dict, List
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict
 import asyncio
-from dataclasses import dataclass
-import statistics
+from datetime import datetime, timedelta
 
 @dataclass
-class ScraperMetrics:
+class ScrapingMetrics:
+    """Container for scraping performance metrics"""
     success_rate: float
     avg_response_time: float
     memory_usage: float
     cpu_usage: float
     active_jobs: int
     items_per_minute: float
-    errors_count: int
     bandwidth_usage: float
+    error_count: int
 
 class ScraperMonitor:
-    """Real-time monitoring and performance tracking"""
+    """Monitor scraping performance and resource usage"""
 
     def __init__(self, window_size: int = 100):
+        # Performance tracking
         self.response_times = deque(maxlen=window_size)
         self.success_counts = deque(maxlen=window_size)
         self.error_counts = deque(maxlen=window_size)
         self.items_scraped = deque(maxlen=window_size)
         self.bandwidth_usage = deque(maxlen=window_size)
         
-        self.start_time = time.time()
+        # Resource tracking
         self.process = psutil.Process()
+        self.start_time = time.time()
+        
+        # Job tracking
+        self.active_jobs: Dict[str, Dict] = {}
 
-    def add_response_time(self, time_ms: float):
-        """Track response time"""
-        self.response_times.append(time_ms)
+    async def track_job(self, job_id: str, stats: Dict):
+        """Update job statistics"""
+        self.active_jobs[job_id] = {
+            'start_time': datetime.now(),
+            'items_scraped': stats.get('items_scraped', 0),
+            'errors': stats.get('errors', 0),
+            'bandwidth': stats.get('bandwidth', 0)
+        }
 
-    def add_result(self, success: bool, items_count: int, bytes_transferred: int):
-        """Track scraping result"""
+        # Update global metrics
+        self.items_scraped.append(stats.get('items_scraped', 0))
+        self.bandwidth_usage.append(stats.get('bandwidth', 0))
+        
+        if response_time := stats.get('response_time'):
+            self.response_times.append(response_time)
+            
+        success = not stats.get('errors', 0)
         self.success_counts.append(1 if success else 0)
-        self.items_scraped.append(items_count)
-        self.bandwidth_usage.append(bytes_transferred)
+        if not success:
+            self.error_counts.append(1)
 
-    def add_error(self, error_type: str):
-        """Track error occurrence"""
-        self.error_counts.append(1)
-
-    def get_metrics(self) -> ScraperMetrics:
-        """Calculate current metrics"""
+    def get_metrics(self) -> ScrapingMetrics:
+        """Calculate current performance metrics"""
         try:
             # Calculate success rate
             success_rate = (
-                statistics.mean(self.success_counts) * 100 
+                sum(self.success_counts) / len(self.success_counts) * 100
                 if self.success_counts else 100
             )
 
             # Calculate average response time
             avg_response = (
-                statistics.mean(self.response_times) 
+                sum(self.response_times) / len(self.response_times)
                 if self.response_times else 0
             )
 
             # Calculate items per minute
-            items_per_min = sum(self.items_scraped) / (
-                (time.time() - self.start_time) / 60
-            )
+            elapsed_minutes = (time.time() - self.start_time) / 60
+            items_per_min = sum(self.items_scraped) / elapsed_minutes if elapsed_minutes > 0 else 0
 
             # Get system metrics
             memory_percent = self.process.memory_percent()
@@ -71,56 +85,84 @@ class ScraperMonitor:
             # Calculate bandwidth usage (MB/s)
             bandwidth = sum(self.bandwidth_usage) / (1024 * 1024)
 
-            return ScraperMetrics(
+            return ScrapingMetrics(
                 success_rate=success_rate,
                 avg_response_time=avg_response,
                 memory_usage=memory_percent,
                 cpu_usage=cpu_percent,
-                active_jobs=len(self.success_counts),
+                active_jobs=len(self.active_jobs),
                 items_per_minute=items_per_min,
-                errors_count=sum(self.error_counts),
-                bandwidth_usage=bandwidth
+                bandwidth_usage=bandwidth,
+                error_count=sum(self.error_counts)
             )
 
         except Exception as e:
-            print(f"Error calculating metrics: {e}")
+            logger.error(f"Error calculating metrics: {e}")
             return None
 
-    async def monitor_performance(self, interval: int = 60):
-        """Continuous performance monitoring"""
+    def cleanup_jobs(self, max_age: timedelta = timedelta(hours=1)):
+        """Remove old completed jobs"""
+        current_time = datetime.now()
+        to_remove = []
+        
+        for job_id, job_data in self.active_jobs.items():
+            if current_time - job_data['start_time'] > max_age:
+                to_remove.append(job_id)
+                
+        for job_id in to_remove:
+            del self.active_jobs[job_id]
+
+    async def monitor_resources(self, threshold: float = 90.0):
+        """Monitor system resources and alert on high usage"""
         while True:
             metrics = self.get_metrics()
             if metrics:
-                # Log performance alerts
-                if metrics.memory_usage > 80:
-                    print("WARNING: High memory usage")
-                if metrics.cpu_usage > 70:
-                    print("WARNING: High CPU usage")
-                if metrics.success_rate < 90:
-                    print("WARNING: Low success rate")
+                if metrics.memory_usage > threshold:
+                    logger.warning(f"High memory usage: {metrics.memory_usage:.1f}%")
+                if metrics.cpu_usage > threshold:
+                    logger.warning(f"High CPU usage: {metrics.cpu_usage:.1f}%")
+                    
+            await asyncio.sleep(60)  # Check every minute
 
-            await asyncio.sleep(interval)
+    def get_job_stats(self, job_id: str) -> Optional[Dict]:
+        """Get statistics for specific job"""
+        if job_id not in self.active_jobs:
+            return None
+            
+        job_data = self.active_jobs[job_id]
+        elapsed = datetime.now() - job_data['start_time']
+        
+        return {
+            'duration': str(elapsed),
+            'items_scraped': job_data['items_scraped'],
+            'errors': job_data['errors'],
+            'bandwidth': job_data['bandwidth'],
+            'items_per_minute': (
+                job_data['items_scraped'] / (elapsed.total_seconds() / 60)
+                if elapsed.total_seconds() > 0 else 0
+            )
+        }
 
-    def generate_report(self) -> Dict:
-        """Generate detailed performance report"""
+    def get_summary(self) -> Dict:
+        """Get overall scraping summary"""
         metrics = self.get_metrics()
         if not metrics:
             return {}
-
+            
         return {
             'performance': {
-                'success_rate': f"{metrics.success_rate:.2f}%",
-                'avg_response_time': f"{metrics.avg_response_time:.2f}ms",
-                'items_per_minute': f"{metrics.items_per_minute:.2f}"
+                'success_rate': f"{metrics.success_rate:.1f}%",
+                'avg_response': f"{metrics.avg_response_time:.2f}ms",
+                'items_per_minute': f"{metrics.items_per_minute:.1f}"
             },
             'resources': {
-                'memory_usage': f"{metrics.memory_usage:.2f}%",
-                'cpu_usage': f"{metrics.cpu_usage:.2f}%",
+                'memory': f"{metrics.memory_usage:.1f}%",
+                'cpu': f"{metrics.cpu_usage:.1f}%",
                 'bandwidth': f"{metrics.bandwidth_usage:.2f}MB/s"
             },
-            'errors': {
-                'total_errors': metrics.errors_count,
-                'error_rate': f"{(metrics.errors_count / len(self.success_counts)) * 100:.2f}%"
-                if self.success_counts else "0%"
+            'activity': {
+                'active_jobs': metrics.active_jobs,
+                'total_errors': metrics.error_count,
+                'uptime': str(timedelta(seconds=int(time.time() - self.start_time)))
             }
         }

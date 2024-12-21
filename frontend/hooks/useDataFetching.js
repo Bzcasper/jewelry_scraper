@@ -1,3 +1,5 @@
+// File: /frontend/hooks/useDataFetching.js
+
 import { useState, useEffect, useCallback } from 'react';
 import { productsApi } from '../src/services/api';
 

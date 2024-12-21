@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+// File: /frontend/src/context/AppContext.js
+
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { scraping, products, system } from '../services/api';
 
 const AppContext = createContext();
@@ -24,7 +26,6 @@ export const AppProvider = ({ children }) => {
         ...prev,
         [job_id]: { status: 'running', progress: 0, ...params }
       }));
-      startJobPolling(job_id);
       return job_id;
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start scraping');
@@ -33,39 +34,6 @@ export const AppProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  // Poll job status
-  const startJobPolling = useCallback((jobId) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await scraping.checkStatus(jobId);
-        setScrapingJobs(prev => ({
-          ...prev,
-          [jobId]: { ...prev[jobId], ...status }
-        }));
-
-        if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(pollInterval);
-          updateSystemStatus();
-        }
-      } catch (err) {
-        console.error(`Error polling job ${jobId}:`, err);
-        clearInterval(pollInterval);
-      }
-    }, 1000);
-
-    return () => clearInterval(pollInterval);
-  }, []);
-
-  // Update system status
-  const updateSystemStatus = useCallback(async () => {
-    try {
-      const status = await system.getStatus();
-      setSystemStatus(status);
-    } catch (err) {
-      console.error('Failed to update system status:', err);
-    }
-  }, []);
 
   // Fetch products with filters
   const fetchProducts = async (params) => {
@@ -86,7 +54,7 @@ export const AppProvider = ({ children }) => {
     setLoading(true);
     try {
       await products.deleteProducts(ids);
-      updateSystemStatus();
+      return true;
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete products');
       throw err;
@@ -95,41 +63,31 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Export products
-  const exportProducts = async (filters) => {
+  // Update system status
+  const updateSystemStatus = useCallback(async () => {
     try {
-      const blob = await products.exportProducts(filters);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `products_export_${new Date().toISOString()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const status = await system.getStatus();
+      setSystemStatus(status);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to export products');
-      throw err;
+      console.error('Failed to update system status:', err);
     }
-  };
+  }, []);
 
   // Keep system status updated
-  useEffect(() => {
+  React.useEffect(() => {
     updateSystemStatus();
     const interval = setInterval(updateSystemStatus, 30000);
     return () => clearInterval(interval);
   }, [updateSystemStatus]);
 
   const value = {
-    // State
     scrapingJobs,
     systemStatus,
     error,
     loading,
-    // Actions
     startScraping,
     fetchProducts,
     deleteProducts,
-    exportProducts,
     clearError: () => setError(null)
   };
 
