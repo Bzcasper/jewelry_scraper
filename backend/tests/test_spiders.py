@@ -1,8 +1,8 @@
 import pytest
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
-from backend.scraper.spiders.ebay_spider import EbaySpider
-from backend.scraper.spiders.amazon_spider import AmazonSpider
+from backend.scraper.ebay_spider import EbaySpider
+from backend.scraper.amazon_spider import AmazonSpider
 
 @pytest.fixture(scope='module')
 def crawler():

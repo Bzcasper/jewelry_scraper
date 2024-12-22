@@ -6,12 +6,12 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 import json
 import hashlib
-from .spiders.ebay_spider import EbayJewelrySpider
-from .spiders.amazon_spider import AmazonJewelrySpider
+from .ebay_spider import EbayJewelrySpider
+from .amazon_spider import AmazonJewelrySpider
 from database.manager import DatabaseManager
 from .monitor import ScraperMonitor
-from utils.proxy_manager import ProxyManager
-from utils.image_processor import ImageProcessor
+from backend.scraper.proxy_manager import ProxyManager
+from backend.scraper.image_processor import ImageProcessor
 
 @dataclass
 class ScrapingJob:

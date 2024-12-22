@@ -11,9 +11,9 @@ import asyncio
 import logging
 from datetime import datetime
 from price_parser import Price
-from ..utils.proxy import Proxy
-from ..utils.rate_limiter import RateLimiter
-from ..database.models import Product
+from .utils import Proxy
+from .rate_limiter import RateLimiter
+from .database.models import Product
 
 class JewelrySpiderBase(Spider):
     """Base spider for jewelry scraping with enhanced capabilities"""

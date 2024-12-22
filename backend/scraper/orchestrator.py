@@ -4,12 +4,12 @@ import logging
 from datetime import datetime
 import aiohttp
 from dataclasses import dataclass
-from .spiders.base import JewelrySpiderBase
-from .spiders.ebay_spider import EbayJewelrySpider
-from .spiders.amazon_spider import AmazonJewelrySpider
+from .base import JewelrySpiderBase
+from .ebay_spider import EbayJewelrySpider
+from .amazon_spider import AmazonJewelrySpider
 from .database.manager import DatabaseManager
-from .utils.image_processor import ImageProcessor
-from .utils.proxy_manager import ProxyManager
+from .image_processor import ImageProcessor
+from .proxy_manager import ProxyManager
 from .monitor import ScraperMonitor
 
 @dataclass

@@ -16,9 +16,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from ..utils.image_processor import ImageProcessor
-from ..utils.proxy_manager import ProxyManager
-from ..utils.rate_limiter import RateLimiter
+from .image_processor import ImageProcessor
+from .proxy_manager import ProxyManager
+from .rate_limiter import RateLimiter
 
 class JewelrySpiderBase(Spider):
     """Enhanced base spider for jewelry scraping with improved resilience"""

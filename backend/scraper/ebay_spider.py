@@ -4,7 +4,6 @@ from scrapy.utils.project import get_project_settings
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.exceptions import DropItem
-from items import ProductItem
 from selenium_utils import setup_driver, save_html_backup, ProxyManager
 from logger import log_error, log_critical_error
 from typing import Optional, Dict, List
